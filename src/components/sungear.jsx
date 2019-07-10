@@ -123,7 +123,7 @@ class SungearBody extends React.Component {
 
       for (let [i, c] of this.circles.entries()) {
         if (this.state.selected.indexOf(i) !== -1) {
-          c.attr("stroke", "#f00");
+          c.attr("stroke", "#257AFD");
         } else {
           c.attr("stroke", "#000");
         }
@@ -318,11 +318,11 @@ class SungearBody extends React.Component {
       }
 
       t.mouseover(function () {
-        this.attr("fill", "#f00");
+        this.attr("fill", "#257AFD");
 
         _.forEach(intersects, (n, i) => {
           if (n[0].indexOf(idx) !== -1) {
-            let c = self.circles[i].attr("stroke", "#f00");
+            let c = self.circles[i].attr("fill", "#257AFD");
             c.toFront();
           }
         });
@@ -332,8 +332,8 @@ class SungearBody extends React.Component {
         this.attr("fill", "#000");
 
         _.forEach(intersects, (n, i) => {
-          if (n[0].indexOf(idx) !== -1 && self.state.selected.indexOf(i) === -1) {
-            self.circles[i].attr("stroke", "#000");
+          if (n[0].indexOf(idx) !== -1) {
+            self.circles[i].attr("fill", "#fff");
           }
         });
       });
@@ -390,10 +390,10 @@ class SungearBody extends React.Component {
       });
 
       c.mouseover(function () {
-        this.attr({fill: "#f00", 'fill-opacity': 1});
+        this.attr({fill: "#257AFD", 'fill-opacity': 1});
 
         for (let idx of n[0]) {
-          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", "#f00");
+          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", "#257AFD");
         }
       });
 
