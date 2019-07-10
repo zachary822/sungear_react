@@ -12,7 +12,6 @@ class QueryBody extends React.Component {
     super(props);
 
     this.state = {
-      dropping: false,
       value: ''
     };
   }
@@ -67,23 +66,13 @@ class QueryBody extends React.Component {
     e.preventDefault();
   }
 
-  handleDragEnter(e) {
-    this.setState({dropping: true});
-  }
-
-  handleDragLeave(e) {
-    this.setState({dropping: false});
-  }
-
-  clear(e) {
+  clear() {
     this.setState({
       value: ''
     });
   }
 
   render() {
-    let {dropping} = this.state;
-
     return <div className="jumbotron bg-white">
       <div className="container">
         <div className="row">
@@ -98,17 +87,14 @@ class QueryBody extends React.Component {
               <div className="form-group">
                 <div className="input-group"
                      onDragOver={this.handleDragOver.bind(this)}
-                     onDragEnter={this.handleDragEnter.bind(this)}
-                     onDragLeave={this.handleDragLeave.bind(this)}
                      onDrop={this.handleDrop.bind(this)}>
                   <textarea className="form-control" placeholder="Input Lists Here"
                             rows={5}
                             onChange={this.handleChange.bind(this)}
-                            value={this.state.value}
-                            disabled={dropping}/>
+                            value={this.state.value}/>
                   <div className="input-group-append">
-                    <button className="btn btn-outline-danger" onClick={this.clear.bind(this)}>Clear</button>
-                    <button className="btn btn-primary" disabled={dropping}>Submit</button>
+                    <button type="button" className="btn btn-outline-danger" onClick={this.clear.bind(this)}>Clear</button>
+                    <button className="btn btn-primary">Submit</button>
                   </div>
                 </div>
               </div>
