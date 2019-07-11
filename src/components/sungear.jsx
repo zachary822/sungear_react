@@ -11,11 +11,7 @@ import {connect} from "react-redux";
 import classNames from "classnames";
 import {getSungear} from "../actions";
 import {library} from '@fortawesome/fontawesome-svg-core';
-import {
-  faSearchPlus,
-  faSearchMinus,
-  faExpand
-} from '@fortawesome/free-solid-svg-icons';
+import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg-icons';
 
 library.add(faSearchPlus, faSearchMinus, faExpand);
 
@@ -418,7 +414,7 @@ class SungearBody extends React.Component {
       selected: []
     };
 
-    this.setSize = _.debounce(this.setSize.bind(this), 100);
+    this.setSize = _.throttle(this.setSize.bind(this), 100);
   }
 
   componentDidMount() {
