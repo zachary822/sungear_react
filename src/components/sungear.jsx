@@ -8,7 +8,16 @@ import _ from 'lodash';
 import PropTypes from 'prop-types';
 import {FontAwesomeIcon as Icon} from "@fortawesome/react-fontawesome";
 import {connect} from "react-redux";
+import classNames from "classnames";
 import {getSungear} from "../actions";
+import {library} from '@fortawesome/fontawesome-svg-core';
+import {
+  faSearchPlus,
+  faSearchMinus,
+  faExpand
+} from '@fortawesome/free-solid-svg-icons';
+
+library.add(faSearchPlus, faSearchMinus, faExpand);
 
 function mapStateToProps({query, data}) {
   return {
@@ -47,7 +56,7 @@ function saveSvg(svgEl, name) {
   document.body.removeChild(downloadLink);
 }
 
-class SungearBody extends React.Component {
+export class SungearGraph extends React.Component {
   constructor(props) {
     super(props);
 
@@ -56,22 +65,16 @@ class SungearBody extends React.Component {
     this.circles = [];
     this.labels = [];
 
-    this.state = {
-      height: 0,
-      data: {},
-      items: [],
-
-      itemsCurr: [],
-      itemsPast: [],
-      itemsFuture: [],
-
-      selected: []
-    };
-
     this.mousedown = false;
     this.mousedownStart = 0;
 
-    this.setHeight = _.debounce(this.setHeight.bind(this), 100);
+    this.scale = 1;
+    this.vX = 0;
+    this.vY = 0;
+
+    this.prevX = 0;
+    this.prevY = 0;
+
     this.handleScroll = this.handleScroll.bind(this);
     this.handleDrag = this.handleDrag.bind(this);
   }
@@ -91,38 +94,35 @@ class SungearBody extends React.Component {
     });
     this.canvas.current.addEventListener('click', (e) => {
       if (e.timeStamp - this.mousedownStart < 500) {
-        this.setState({selected: []});
+        this.props.onSelectChange([]);
       }
     });
 
     this.canvas.current.addEventListener('mousemove', this.handleDrag);
-
-    this.scale = 1;
-    this.vX = 0;
-    this.vY = 0;
-
-    this.prevX = 0;
-    this.prevY = 0;
-
-    this.getSungear();
-
-    this.setHeight();
-    window.addEventListener('resize', this.setHeight);
   }
 
-  componentDidUpdate(prevProps, prevState) {
-    if (this.state.height && _.size(this.props.data) &&
-      (this.state.height !== prevState.height || this.props.data !== prevProps.data)) {
+  componentDidUpdate(prevProps) {
+    let {width, height, data, selected, vertexFormatter} = this.props;
+
+    if (height !== prevProps.height || width !== prevProps.width) {
+      this.paper.setSize(width, height);
+    }
+
+    if (!_.isEmpty(data) && width && height &&
+      (height !== prevProps.height ||
+        width !== prevProps.width ||
+        data !== prevProps.data ||
+        vertexFormatter !== prevProps.vertexFormatter)) {
       this.draw();
     }
 
-    if (this.state.selected !== prevState.selected) {
-      this.setState({
-        items: _(this.state.selected).map((s) => this.props.data.intersects[s][2]).flatten().sortBy().value()
-      });
+    if (data !== prevProps.data && !_.isEmpty(data)) {
+      this.resetView();
+    }
 
+    if (selected !== prevProps.selected) {
       for (let [i, c] of this.circles.entries()) {
-        if (this.state.selected.indexOf(i) !== -1) {
+        if (selected.indexOf(i) !== -1) {
           c.attr("stroke", "#257AFD");
         } else {
           c.attr("stroke", "#000");
@@ -131,139 +131,10 @@ class SungearBody extends React.Component {
     }
   }
 
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.setHeight);
-  }
-
-  setHeight() {
-    this.setState({height: document.documentElement.clientHeight - this.canvas.current.getBoundingClientRect().top},
-      () => {
-        if (this.paper) {
-          this.paper.setSize(this.paper.width, this.state.height);
-        }
-      });
-  }
-
-  getSungear(filterList) {
-    let {query} = this.props;
-    this.resetView();
-    return this.props.getSungear(query, filterList).then(() => {
-      this.setState({selected: []});
-    });
-  }
-
-  narrowClick(e) {
-    e.preventDefault();
-    if (this.state.items.length) {
-      let {items} = this.state;
-      this.getSungear(items).then(() => {
-        this.setState((state) => {
-          return {
-            itemsPast: [...state.itemsPast, state.itemsCurr],
-            itemsCurr: items,
-            itemsFuture: []
-          };
-        });
-      });
-    }
-  }
-
-  prevClick(e) {
-    e.preventDefault();
-    let {itemsPast} = this.state;
-    let prevs = itemsPast.slice(0, itemsPast.length - 1);
-    let curr = itemsPast[itemsPast.length - 1];
-
-    this.getSungear(curr).then(() => {
-      this.setState((state) => {
-        return {
-          itemsCurr: curr,
-          itemsPast: prevs,
-          itemsFuture: [state.itemsCurr, ...state.itemsFuture]
-        };
-      });
-    });
-  }
-
-  nextClick(e) {
-    e.preventDefault();
-    let {itemsFuture} = this.state;
-    let [curr, ...futures] = itemsFuture;
-
-    this.getSungear(curr).then(() => {
-      this.setState((state) => {
-        return {
-          itemsCurr: curr,
-          itemsPast: [...state.itemsPast, state.itemsCurr],
-          itemsFuture: futures
-        };
-      });
-    });
-  }
-
-  resetClick(e) {
-    this.resetView();
-    this.getSungear().then(() => {
-      this.setState({
-        itemsCurr: [],
-        itemsPast: [],
-        itemsFuture: []
-      });
-    });
-  }
-
-  get vW() {
-    return this.paper.width * this.scale;
-  }
-
-  get vH() {
-    return this.paper.height * this.scale;
-  }
-
-  handleScroll(e) {
-    e.preventDefault();
-
-    let {deltaY} = e;
-
-    if (deltaY > 0) {
-      this.scale *= 1.05;
-    } else if (deltaY < 0) {
-      this.scale *= 0.95;
-    }
-
-    window.requestAnimationFrame(() => {
-      this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
-    });
-  }
-
-  handleDrag(e) {
-    e.preventDefault();
-    if (this.mousedown) {
-      this.vX += (this.prevX - e.x) * this.scale;
-      this.vY += (this.prevY - e.y) * this.scale;
-
-      this.prevX = e.x;
-      this.prevY = e.y;
-
-      window.requestAnimationFrame(() => {
-        this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
-      });
-    }
-  }
-
-  resetView() {
-    this.scale = 1;
-    this.vX = 0;
-    this.vY = 0;
-
-    this.paper.setViewBox(0, 0, this.vW, this.vH);
-  }
-
   draw() {
     let self = this;
-    let {height} = this.state;
-    let {data} = this.props;
-    let {width} = this.canvas.current.getBoundingClientRect();
+    let {height, width, data, selected, onSelectChange, vertexFormatter} = this.props;
+
     let side = Math.min(width, height);
     let polygon, r, polySide;
     let center = [side / 2 + 0.05 * width, side / 2]; // @todo: move to center of page
@@ -298,6 +169,7 @@ class SungearBody extends React.Component {
       polygon = this.paper.path(`M ${v0[0]} ${v0[1]}\n` + _([...vr, v0]).map((vi) => `L ${vi[0]} ${vi[1]}`).join('\n'));
     }
 
+    // draw vertices
     for (let [j, [idx, v]] of vertices.entries()) {
       let cv = subtract(center, v);
       let vlen = distance(...cv, 0, 0);
@@ -305,12 +177,18 @@ class SungearBody extends React.Component {
 
       let rotation = (360 - (360 / vertices.length) * j) % 360;
 
-      let t = this.paper.text(...vloc, idx.toString());
+      let t = this.paper.text(...vloc, vertexFormatter(idx.toString()) || idx.toString());
       let tW = t.getBBox().width;
 
       this.labels.push(t);
 
-      t.rotate(rotation);
+      // keep text as upright as possible
+      if (rotation < 270 && rotation > 90) {
+        t.rotate(rotation - 180);
+      } else {
+        t.rotate(rotation);
+      }
+
       if (tW > polySide) {
         // scale if too big
         let s = polySide / tW;
@@ -347,17 +225,11 @@ class SungearBody extends React.Component {
         }).filter(_.negate(_.isUndefined)).value();
 
         if (e.metaKey) {
-          this.setState({
-            selected: _.uniq([...this.state.selected, ...toSelect])
-          });
+          onSelectChange(_.uniq([...selected, ...toSelect]));
         } else if (e.altKey) {
-          this.setState({
-            selected: _.difference(this.state.selected, toSelect)
-          });
+          onSelectChange(_.difference(selected, toSelect));
         } else {
-          this.setState({
-            selected: toSelect
-          });
+          onSelectChange(toSelect);
         }
       });
     }
@@ -373,19 +245,13 @@ class SungearBody extends React.Component {
       c.click((e) => {
         e.stopPropagation();
         if (e.metaKey) {
-          if (this.state.selected.indexOf(i) === -1) {
-            this.setState({
-              selected: [...this.state.selected, i]
-            });
+          if (selected.indexOf(i) === -1) {
+            onSelectChange([...selected, i]);
           } else {
-            this.setState({
-              selected: this.state.selected.filter((s) => s !== i)
-            });
+            onSelectChange(selected.filter((s) => s !== i));
           }
         } else {
-          this.setState({
-            selected: [i]
-          });
+          onSelectChange([i]);
         }
       });
 
@@ -440,6 +306,218 @@ class SungearBody extends React.Component {
     }
   }
 
+  get vW() {
+    return this.paper.width * this.scale;
+  }
+
+  get vH() {
+    return this.paper.height * this.scale;
+  }
+
+  handleScroll(e) {
+    e.preventDefault();
+
+    let {deltaY} = e;
+
+    if (deltaY > 0) {
+      this.zoomOut();
+    } else if (deltaY < 0) {
+      this.zoomIn();
+    }
+  }
+
+  handleDrag(e) {
+    e.preventDefault();
+    if (this.mousedown) {
+      this.vX += (this.prevX - e.x) * this.scale;
+      this.vY += (this.prevY - e.y) * this.scale;
+
+      this.prevX = e.x;
+      this.prevY = e.y;
+
+      this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
+    }
+  }
+
+  resetView() {
+    this.scale = 1;
+    this.vX = 0;
+    this.vY = 0;
+
+    this.paper.setViewBox(0, 0, this.vW, this.vH);
+  }
+
+  zoomIn() {
+    this.scale *= 0.95;
+    this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
+  }
+
+  zoomOut() {
+    this.scale *= 1.05;
+    this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
+  }
+
+  render() {
+    let {className, width, height} = this.props;
+    return <div style={{width, height, position: 'relative'}}>
+      <div ref={this.canvas}
+           className={classNames(className)}/>
+      <div style={{position: 'absolute', top: '10px', left: '0px'}}>
+        <div className="btn-group-vertical">
+          <button type="button" className="btn btn-primary btn-sm" onClick={this.resetView.bind(this)}>
+            <Icon icon="expand" className="mr-1"/>
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={this.zoomIn.bind(this)}>
+            <Icon icon="search-plus" className="mr-1"/>
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={this.zoomOut.bind(this)}>
+            <Icon icon="search-minus" className="mr-1"/>
+          </button>
+        </div>
+      </div>
+    </div>;
+  }
+}
+
+SungearGraph.propTypes = {
+  className: PropTypes.string,
+  width: PropTypes.number,
+  height: PropTypes.number,
+  data: PropTypes.object.isRequired,
+  selected: PropTypes.array,
+  onSelectChange: PropTypes.func,
+  vertexFormatter: PropTypes.func
+};
+
+SungearGraph.defaultProps = {
+  width: 1280,
+  height: 800,
+  onSelectChange: _.noop,
+  vertexFormatter: _.identity
+};
+
+class SungearBody extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.canvas = React.createRef();
+
+    this.state = {
+      height: 0,
+      width: 0,
+      data: {},
+      items: [],
+
+      itemsCurr: [],
+      itemsPast: [],
+      itemsFuture: [],
+
+      selected: []
+    };
+
+    this.setSize = _.debounce(this.setSize.bind(this), 100);
+  }
+
+  componentDidMount() {
+    this.getSungear();
+
+    this.setSize();
+    window.addEventListener('resize', this.setSize);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (this.state.selected !== prevState.selected) {
+      this.setState({
+        items: _(this.state.selected).map((s) => this.props.data.intersects[s][2]).flatten().sortBy().value()
+      });
+    }
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.setSize);
+  }
+
+  setSize() {
+    let {width, top} = this.canvas.current.getBoundingClientRect();
+
+    this.setState({
+      height: document.documentElement.clientHeight - top,
+      width
+    });
+  }
+
+  handleSelect(selected) {
+    this.setState({
+      selected
+    });
+  }
+
+  getSungear(filterList) {
+    let {query} = this.props;
+    return this.props.getSungear(query, filterList).then(() => {
+      this.setState({selected: []});
+    });
+  }
+
+  narrowClick(e) {
+    e.preventDefault();
+    if (this.state.items.length) {
+      let {items} = this.state;
+      this.getSungear(items).then(() => {
+        this.setState((state) => {
+          return {
+            itemsPast: [...state.itemsPast, state.itemsCurr],
+            itemsCurr: items,
+            itemsFuture: []
+          };
+        });
+      });
+    }
+  }
+
+  prevClick(e) {
+    e.preventDefault();
+    let {itemsPast} = this.state;
+    let prevs = itemsPast.slice(0, itemsPast.length - 1);
+    let curr = itemsPast[itemsPast.length - 1];
+
+    this.getSungear(curr).then(() => {
+      this.setState((state) => {
+        return {
+          itemsCurr: curr,
+          itemsPast: prevs,
+          itemsFuture: [state.itemsCurr, ...state.itemsFuture]
+        };
+      });
+    });
+  }
+
+  nextClick(e) {
+    e.preventDefault();
+    let {itemsFuture} = this.state;
+    let [curr, ...futures] = itemsFuture;
+
+    this.getSungear(curr).then(() => {
+      this.setState((state) => {
+        return {
+          itemsCurr: curr,
+          itemsPast: [...state.itemsPast, state.itemsCurr],
+          itemsFuture: futures
+        };
+      });
+    });
+  }
+
+  resetClick() {
+    this.getSungear().then(() => {
+      this.setState({
+        itemsCurr: [],
+        itemsPast: [],
+        itemsFuture: []
+      });
+    });
+  }
+
   inverseSelection() {
     let {selected} = this.state;
     let {data: {intersects}} = this.props;
@@ -453,24 +531,28 @@ class SungearBody extends React.Component {
     try {
       saveSvg(this.canvas.current.getElementsByTagName('svg')[0], 'sungear.svg');
     } catch (e) {
-
+      //ignore errors
     }
 
   }
 
   render() {
-    let {height, items} = this.state;
+    let {height, width, selected, items} = this.state;
+    let {data} = this.props;
 
     return <div className="container-fluid">
       <div className="row">
-        <div ref={this.canvas} className="col-8" style={{width: '100%', height}}/>
+        <div ref={this.canvas} className="col-8 w-100">
+          <SungearGraph width={width}
+                        height={height}
+                        data={data}
+                        selected={selected}
+                        onSelectChange={this.handleSelect.bind(this)}/>
+        </div>
         <div className="col-4">
           <div className="row m-1">
             <div className="col">
               <div className="btn-group mr-1">
-                <button type="button" className="btn btn-primary" onClick={this.resetView.bind(this)}>
-                  <Icon icon="expand" className="mr-1"/>Center
-                </button>
                 <button type="button" className="btn btn-primary" onClick={this.narrowClick.bind(this)}>
                   <Icon icon="filter" className="mr-1"/>Narrow
                 </button>
