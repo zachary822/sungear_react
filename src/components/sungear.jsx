@@ -177,7 +177,7 @@ export class SungearGraph extends React.Component {
 
       let rotation = (360 - (360 / vertices.length) * j) % 360;
 
-      let t = this.paper.text(...vloc, vertexFormatter(idx.toString()) || idx.toString());
+      let t = this.paper.text(...vloc, vertexFormatter[idx] || idx.toString());
       let tW = t.getBBox().width;
 
       this.labels.push(t);
@@ -386,14 +386,14 @@ SungearGraph.propTypes = {
   data: PropTypes.object.isRequired,
   selected: PropTypes.array,
   onSelectChange: PropTypes.func,
-  vertexFormatter: PropTypes.func
+  vertexFormatter: PropTypes.object
 };
 
 SungearGraph.defaultProps = {
   width: 1280,
   height: 800,
   onSelectChange: _.noop,
-  vertexFormatter: _.identity
+  vertexFormatter: {}
 };
 
 class SungearBody extends React.Component {
