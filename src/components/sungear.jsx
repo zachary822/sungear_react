@@ -133,7 +133,7 @@ export class SungearGraph extends React.Component {
 
   draw() {
     let self = this;
-    let {height, width, data, selected, onSelectChange, vertexFormatter} = this.props;
+    let {height, width, data, onSelectChange, vertexFormatter} = this.props;
 
     let side = Math.min(width, height);
     let polygon, r, polySide;
@@ -218,6 +218,7 @@ export class SungearGraph extends React.Component {
 
       t.click((e) => {
         e.stopPropagation();
+        let {selected} = this.props;
         let toSelect = _(intersects).map((n, i) => {
           if (n[0].indexOf(idx) !== -1) {
             return i;
@@ -244,6 +245,8 @@ export class SungearGraph extends React.Component {
 
       c.click((e) => {
         e.stopPropagation();
+        let {selected} = this.props;
+
         if (e.metaKey) {
           if (selected.indexOf(i) === -1) {
             onSelectChange([...selected, i]);
@@ -447,6 +450,7 @@ class SungearBody extends React.Component {
   }
 
   handleSelect(selected) {
+    console.log(selected);
     this.setState({
       selected
     });
