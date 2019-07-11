@@ -450,7 +450,6 @@ class SungearBody extends React.Component {
   }
 
   handleSelect(selected) {
-    console.log(selected);
     this.setState({
       selected
     });
