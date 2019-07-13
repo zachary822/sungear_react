@@ -4,8 +4,8 @@
  */
 import React from "react";
 import {Redirect, Route, Switch, Link, NavLink} from "react-router-dom";
-import Sungear from "./sungear";
 import Query from "./query";
+import Result from "./result";
 
 class App extends React.Component {
   render() {
@@ -20,7 +20,7 @@ class App extends React.Component {
       </nav>
       <Switch>
         <Route path="/" exact component={Query}/>
-        <Route path="/sungear" component={Sungear}/>
+        <Route path="/sungear" component={Result}/>
         <Redirect to="/"/>
       </Switch>
     </div>;

@@ -7,20 +7,13 @@ import Raphael from 'raphael';
 import _ from 'lodash';
 import PropTypes from 'prop-types';
 import {FontAwesomeIcon as Icon} from "@fortawesome/react-fontawesome";
-import {connect} from "react-redux";
 import classNames from "classnames";
-import {getSungear} from "../actions";
+import {FixedSizeList as List} from "react-window";
+import {buildSearchRegex} from "../utils";
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg-icons';
 
 library.add(faSearchPlus, faSearchMinus, faExpand);
-
-function mapStateToProps({query, data}) {
-  return {
-    query,
-    data
-  };
-}
 
 function distance(x1, y1, x2, y2) {
   return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
@@ -38,21 +31,7 @@ function scaleVector(v, scale = 1, xoffset = 0, yoffset = 0) {
   return [v[0] * scale + xoffset, v[1] * scale + yoffset];
 }
 
-function saveSvg(svgEl, name) {
-  svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  let svgData = svgEl.outerHTML;
-  let preface = '<?xml version="1.0" standalone="no"?>\r\n';
-  let svgBlob = new Blob([preface, svgData], {type: "image/svg+xml;charset=utf-8"});
-  let svgUrl = URL.createObjectURL(svgBlob);
-  let downloadLink = document.createElement("a");
-  downloadLink.href = svgUrl;
-  downloadLink.download = name;
-  document.body.appendChild(downloadLink);
-  downloadLink.click();
-  document.body.removeChild(downloadLink);
-}
-
-export class SungearGraph extends React.Component {
+export class Sungear extends React.Component {
   constructor(props) {
     super(props);
 
@@ -98,7 +77,7 @@ export class SungearGraph extends React.Component {
   }
 
   componentDidUpdate(prevProps) {
-    let {width, height, data, selected, vertexFormatter} = this.props;
+    let {width, height, data, selected, vertexFormatter, strokeColor} = this.props;
 
     if (height !== prevProps.height || width !== prevProps.width) {
       this.paper.setSize(width, height);
@@ -119,10 +98,16 @@ export class SungearGraph extends React.Component {
     if (selected !== prevProps.selected) {
       for (let [i, c] of this.circles.entries()) {
         if (selected.indexOf(i) !== -1) {
-          c.attr("stroke", "#257AFD");
+          c.attr("stroke", strokeColor);
         } else {
           c.attr("stroke", "#000");
         }
+      }
+    }
+
+    if (strokeColor !== prevProps.strokeColor && selected === prevProps.selected) {
+      for (let i of selected) {
+        this.circles[i].attr("stroke", strokeColor);
       }
     }
   }
@@ -133,7 +118,7 @@ export class SungearGraph extends React.Component {
 
     let side = Math.min(width, height);
     let polygon, r, polySide;
-    let center = [side / 2 + 0.05 * width, side / 2]; // @todo: move to center of page
+    let center = [side / 2 + 0.05 * width, side / 2];
     const applyHeight = _.partial(scaleVector, _, side, 0.05 * width);
     this.circles = [];
     this.labels = [];
@@ -192,11 +177,12 @@ export class SungearGraph extends React.Component {
       }
 
       t.mouseover(function () {
-        this.attr("fill", "#257AFD");
+        let {fillColor} = self.props;
+        this.attr("fill", fillColor);
 
         _.forEach(intersects, (n, i) => {
           if (n[0].indexOf(idx) !== -1) {
-            let c = self.circles[i].attr("fill", "#257AFD");
+            let c = self.circles[i].attr("fill", fillColor);
             c.toFront();
           }
         });
@@ -255,10 +241,12 @@ export class SungearGraph extends React.Component {
       });
 
       c.mouseover(function () {
-        this.attr({fill: "#257AFD", 'fill-opacity': 1});
+        let {fillColor} = self.props;
+
+        this.attr({fill: fillColor, 'fill-opacity': 1});
 
         for (let idx of n[0]) {
-          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", "#257AFD");
+          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", fillColor);
         }
       });
 
@@ -348,11 +336,13 @@ export class SungearGraph extends React.Component {
 
   zoomIn() {
     this.scale *= 0.95;
+    this.scale = Math.max(this.scale, 0.1);
     this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
   }
 
   zoomOut() {
     this.scale *= 1.05;
+    this.scale = Math.min(this.scale, 10);
     this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
   }
 
@@ -378,58 +368,43 @@ export class SungearGraph extends React.Component {
   }
 }
 
-SungearGraph.propTypes = {
+Sungear.propTypes = {
   className: PropTypes.string,
   width: PropTypes.number,
   height: PropTypes.number,
   data: PropTypes.object.isRequired,
   selected: PropTypes.array,
   onSelectChange: PropTypes.func,
-  vertexFormatter: PropTypes.object
+  vertexFormatter: PropTypes.object,
+  fillColor: PropTypes.string,
+  strokeColor: PropTypes.string
 };
 
-SungearGraph.defaultProps = {
+Sungear.defaultProps = {
   width: 1280,
   height: 800,
   onSelectChange: _.noop,
-  vertexFormatter: {}
+  vertexFormatter: {},
+  fillColor: "#257AFD",
+  strokeColor: "#257AFD"
 };
 
-class SungearBody extends React.Component {
+export class ItemList extends React.PureComponent {
   constructor(props) {
     super(props);
 
-    this.canvas = React.createRef();
+    this.listOuterRef = React.createRef();
 
     this.state = {
-      height: 0,
-      width: 0,
-      data: {},
-      items: [],
-
-      itemsCurr: [],
-      itemsPast: [],
-      itemsFuture: [],
-
-      selected: []
+      height: 0
     };
 
     this.setSize = _.throttle(this.setSize.bind(this), 100);
   }
 
   componentDidMount() {
-    this.getSungear();
-
     this.setSize();
     window.addEventListener('resize', this.setSize);
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    if (this.state.selected !== prevState.selected) {
-      this.setState({
-        items: _(this.state.selected).map((s) => this.props.data.intersects[s][2]).flatten().sortBy().value()
-      });
-    }
   }
 
   componentWillUnmount() {
@@ -437,186 +412,84 @@ class SungearBody extends React.Component {
   }
 
   setSize() {
-    let {width, top} = this.canvas.current.getBoundingClientRect();
-
     this.setState({
-      height: document.documentElement.clientHeight - top,
-      width
+      height: document.documentElement.clientHeight - this.listOuterRef.current.getBoundingClientRect().top
     });
   }
 
-  handleSelect(selected) {
-    this.setState({
-      selected
-    });
+  renderItem({index, style}) {
+    return <li className="list-group-item" style={style}>
+      {this.props.items[index]}
+    </li>;
   }
 
-  getSungear(filterList) {
-    let {query} = this.props;
-    return this.props.getSungear(query, filterList).then(() => {
-      this.setState({selected: []});
-    });
+  render() {
+    return <List className={this.props.className}
+                 ref={this.props.listRef}
+                 outerRef={this.listOuterRef}
+                 innerElementType={"ul"}
+                 itemSize={50}
+                 height={this.state.height}
+                 itemCount={this.props.items.length}>
+      {this.renderItem.bind(this)}
+    </List>;
+  }
+}
+
+ItemList.propTypes = {
+  items: PropTypes.array.isRequired,
+  listRef: PropTypes.object,
+  className: PropTypes.string
+};
+
+export class Search extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.searchIntersects = _.debounce(this.searchIntersects.bind(this), 150);
   }
 
-  narrowClick(e) {
-    e.preventDefault();
-    if (this.state.items.length) {
-      let {items} = this.state;
-      this.getSungear(items).then(() => {
-        this.setState((state) => {
-          return {
-            itemsPast: [...state.itemsPast, state.itemsCurr],
-            itemsCurr: items,
-            itemsFuture: []
-          };
-        });
-      });
+  componentDidUpdate(prevProps) {
+    let {value} = this.props;
+
+    if (value !== prevProps.value) {
+      this.searchIntersects(value);
     }
   }
 
-  prevClick(e) {
-    e.preventDefault();
-    let {itemsPast} = this.state;
-    let prevs = itemsPast.slice(0, itemsPast.length - 1);
-    let curr = itemsPast[itemsPast.length - 1];
+  searchIntersects(value) {
+    let {onSelectChange, data} = this.props;
 
-    this.getSungear(curr).then(() => {
-      this.setState((state) => {
-        return {
-          itemsCurr: curr,
-          itemsPast: prevs,
-          itemsFuture: [state.itemsCurr, ...state.itemsFuture]
-        };
-      });
-    });
-  }
+    if (value) {
+      let searchRegex = buildSearchRegex(value);
 
-  nextClick(e) {
-    e.preventDefault();
-    let {itemsFuture} = this.state;
-    let [curr, ...futures] = itemsFuture;
-
-    this.getSungear(curr).then(() => {
-      this.setState((state) => {
-        return {
-          itemsCurr: curr,
-          itemsPast: [...state.itemsPast, state.itemsCurr],
-          itemsFuture: futures
-        };
-      });
-    });
-  }
-
-  resetClick() {
-    this.getSungear().then(() => {
-      this.setState({
-        itemsCurr: [],
-        itemsPast: [],
-        itemsFuture: []
-      });
-    });
-  }
-
-  inverseSelection() {
-    let {selected} = this.state;
-    let {data: {intersects}} = this.props;
-
-    this.setState({
-      selected: _.difference(_.range(_.size(intersects)), selected)
-    });
-  }
-
-  exportSvg() {
-    try {
-      saveSvg(this.canvas.current.getElementsByTagName('svg')[0], 'sungear.svg');
-    } catch (e) {
-      //ignore errors
+      onSelectChange(_(data.intersects)
+        .map((n, i) => {
+          if (_.findIndex(n[2], (s) => searchRegex.test(s)) !== -1) {
+            return i;
+          }
+        })
+        .filter(_.negate(_.isUndefined))
+        .value());
+    } else {
+      onSelectChange([]);
     }
 
   }
 
   render() {
-    let {height, width, selected, items} = this.state;
-    let {data} = this.props;
-
-    return <div className="container-fluid">
-      <div className="row">
-        <div ref={this.canvas} className="col-8 w-100">
-          <SungearGraph width={width}
-                        height={height}
-                        data={data}
-                        selected={selected}
-                        onSelectChange={this.handleSelect.bind(this)}/>
-        </div>
-        <div className="col-4">
-          <div className="row m-1">
-            <div className="col">
-              <div className="btn-group mr-1">
-                <button type="button" className="btn btn-primary" onClick={this.narrowClick.bind(this)}>
-                  <Icon icon="filter" className="mr-1"/>Narrow
-                </button>
-                <button type="button" className="btn btn-primary" onClick={this.inverseSelection.bind(this)}>
-                  <Icon icon="object-group" className="mr-1"/>Inverse
-                </button>
-                <button type="button" className="btn btn-primary"
-                        onClick={this.resetClick.bind(this)}>
-                  <Icon icon="sync" className="mr-1"/>Reset
-                </button>
-              </div>
-
-            </div>
-          </div>
-          <div className="row m-1">
-            <div className="col">
-              <div>Selections:</div>
-              <div className="btn-group">
-                <button type="button" className="btn btn-primary"
-                        disabled={!this.state.itemsPast.length}
-                        onClick={this.prevClick.bind(this)}>
-                  <Icon icon="arrow-circle-left" className="mr-1"/>Previous
-                </button>
-                <button type="button" className="btn btn-primary"
-                        disabled={!this.state.itemsFuture.length}
-                        onClick={this.nextClick.bind(this)}>
-                  Next<Icon icon="arrow-circle-right" className="ml-1"/>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="row m-1">
-            <div className="col">
-              <div className="btn-group">
-                <a className="btn btn-primary" href={'data:text/plain,' + _.join(this.state.items, '\n') + '\n'}
-                   download="items.txt">Export Items</a>
-                <button type="button" className="btn btn-primary" onClick={this.exportSvg.bind(this)}>Export Image
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="row m-1">
-            <div className="col">
-              <p>
-                {items.length.toLocaleString()} items
-              </p>
-              <div className="overflow-auto border rounded" style={{maxHeight: '50vh'}}>
-                <ul className="list-group-flush">
-                  {_.map(items, (g, i) => <li key={i} className="list-group-item">{g}</li>)}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>;
+    return <input type="search"
+                  className="form-control"
+                  placeholder="Search"
+                  value={this.props.value}
+                  onChange={this.props.onChange}/>;
   }
 }
 
-SungearBody.propTypes = {
-  query: PropTypes.string,
-  data: PropTypes.object,
-  getSungear: PropTypes.func
+Search.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func,
+  selected: PropTypes.array,
+  onSelectChange: PropTypes.func,
+  data: PropTypes.object
 };
-
-const Sungear = connect(mapStateToProps, {getSungear})(SungearBody);
-
-export default Sungear;
