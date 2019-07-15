@@ -11,6 +11,8 @@ import classNames from "classnames";
 import {FixedSizeList as List} from "react-window";
 import {buildSearchRegex} from "../utils";
 import {library} from '@fortawesome/fontawesome-svg-core';
+import IntersectionIcon from "../images/intersection.svg";
+import UnionIcon from "../images/combination.svg";
 import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg-icons';
 
 library.add(faSearchPlus, faSearchMinus, faExpand);
@@ -36,6 +38,10 @@ export class Sungear extends React.Component {
     super(props);
 
     this.canvas = React.createRef();
+
+    this.state = {
+      selectMode: "union"
+    };
 
     this.circles = [];
     this.labels = [];
@@ -208,7 +214,12 @@ export class Sungear extends React.Component {
         }).filter(_.negate(_.isUndefined)).value();
 
         if (e.metaKey || e.shiftKey || e.ctrlKey) {
-          onSelectChange(_.uniq([...selected, ...toSelect]));
+          let {selectMode} = this.state;
+          if (selectMode === "union") {
+            onSelectChange(_.uniq([...selected, ...toSelect]));
+          } else if (selectMode === "intersection") {
+            onSelectChange(_.uniq(_.intersection(selected, toSelect)));
+          }
         } else if (e.altKey) {
           onSelectChange(_.difference(selected, toSelect));
         } else {
@@ -346,13 +357,21 @@ export class Sungear extends React.Component {
     this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
   }
 
+  setSelectMode(selectMode) {
+    this.setState({
+      selectMode
+    });
+  }
+
   render() {
     let {className, width, height} = this.props;
+    let {selectMode} = this.state;
+
     return <div style={{width, height, position: 'relative'}}>
       <div ref={this.canvas}
            className={classNames(className)}/>
-      <div style={{position: 'absolute', top: '10px', left: '0px'}}>
-        <div className="btn-group-vertical">
+      <div className="d-flex flex-column" style={{position: 'absolute', top: '10px', left: '0px'}}>
+        <div className="btn-group-vertical mb-2">
           <button type="button" className="btn btn-primary btn-sm" onClick={this.resetView.bind(this)}>
             <Icon icon="expand" className="mr-1"/>
           </button>
@@ -361,6 +380,21 @@ export class Sungear extends React.Component {
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={this.zoomOut.bind(this)}>
             <Icon icon="search-minus" className="mr-1"/>
+          </button>
+        </div>
+
+        <div className="btn-group-vertical">
+          <button type="button"
+                  className={classNames("btn btn-primary py-0 px-1", selectMode === "union" && "active")}
+                  onClick={this.setSelectMode.bind(this, "union")}
+                  title="union">
+            <UnionIcon width="32" height="32" viewBox="0 93 455 270" style={{fill: "#ffffff"}}/>
+          </button>
+          <button type="button"
+                  className={classNames("btn btn-primary py-0 px-1", selectMode === "intersection" && "active")}
+                  onClick={this.setSelectMode.bind(this, "intersection")}
+                  title="intersection">
+            <IntersectionIcon width="32" height="32" viewBox="0 93 455 270" style={{fill: "#ffffff"}}/>
           </button>
         </div>
       </div>
