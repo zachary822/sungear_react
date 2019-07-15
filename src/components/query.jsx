@@ -22,14 +22,7 @@ class QueryBody extends React.Component {
 
   handleSubmit(e) {
     e.preventDefault();
-    let {value} = this.state;
-
-    this.props.getSungear(value).then(() => {
-      this.props.setQuery(value);
-      this.props.history.push('/sungear');
-    }).catch(() => {
-      this.setState({error: true});
-    });
+    this.submit();
   }
 
   handleChange(e) {
@@ -97,11 +90,37 @@ class QueryBody extends React.Component {
     };
   }
 
+  submit() {
+    let {value} = this.state;
+
+    this.props.getSungear(value).then(() => {
+      this.props.setQuery(value);
+      this.props.history.push('/sungear');
+    }).catch(() => {
+      this.setState({error: true});
+    });
+  }
+
   clear() {
     this.setState({
       value: '',
       error: false
     });
+  }
+
+  demoClick(e) {
+    e.preventDefault();
+
+    const fileUrl = require('../sample/Nemhauser_et_al_hormones.txt');
+
+    fetch(fileUrl)
+      .then((resp) => resp.text())
+      .then((text) => {
+        this.setState({value: text}, this.submit.bind(this));
+      })
+      .catch(() => {
+        this.setState({error: true});
+      });
   }
 
   render() {
@@ -140,7 +159,7 @@ class QueryBody extends React.Component {
                   </div>
                 </div>
                 <small className="form-text text-muted">
-                  You can also drag and drop text files.
+                  You can also drag and drop text files. <a href="#" onClick={this.demoClick.bind(this)}>demo</a>
                 </small>
               </div>
               <input type="file" hidden ref={this.fileInput} onChange={this.handleFileInput.bind(this)}/>
