@@ -7,6 +7,7 @@ import {connect} from "react-redux";
 import PropTypes from "prop-types";
 import {getSungear, setQuery} from "../actions";
 import classNames from "classnames";
+import fileUrl from '../sample/Nemhauser_et_al_hormones.txt';
 
 class QueryBody extends React.Component {
   constructor(props) {
@@ -111,8 +112,6 @@ class QueryBody extends React.Component {
   demoClick(e) {
     e.preventDefault();
 
-    const fileUrl = require('../sample/Nemhauser_et_al_hormones.txt');
-
     fetch(fileUrl)
       .then((resp) => resp.text())
       .then((text) => {
@@ -158,8 +157,14 @@ class QueryBody extends React.Component {
                     <button className="btn btn-primary">Submit</button>
                   </div>
                 </div>
+                <small>
+                  You can also drag and drop text files.
+                </small>
                 <small className="form-text text-muted">
-                  You can also drag and drop text files. <a href="#" onClick={this.demoClick.bind(this)}>demo</a>
+                  <a href="#" onClick={this.demoClick.bind(this)}>demo</a>
+                </small>
+                <small className="form-text text-muted">
+                  <a href={fileUrl} download>sample file</a>
                 </small>
               </div>
               <input type="file" hidden ref={this.fileInput} onChange={this.handleFileInput.bind(this)}/>
