@@ -215,9 +215,10 @@ export class Sungear extends React.Component {
 
         if (e.metaKey || e.shiftKey || e.ctrlKey) {
           let {selectMode} = this.state;
-          if (selectMode === "union") {
+          if (selectMode === "union" || !selected.length) {
             onSelectChange(_.uniq([...selected, ...toSelect]));
-          } else if (selectMode === "intersection") {
+          } else {
+            // selectMode === "intersection"
             onSelectChange(_.uniq(_.intersection(selected, toSelect)));
           }
         } else if (e.altKey) {
