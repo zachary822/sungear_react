@@ -207,7 +207,7 @@ export class Sungear extends React.Component {
           }
         }).filter(_.negate(_.isUndefined)).value();
 
-        if (e.metaKey) {
+        if (e.metaKey || e.shiftKey || e.ctrlKey) {
           onSelectChange(_.uniq([...selected, ...toSelect]));
         } else if (e.altKey) {
           onSelectChange(_.difference(selected, toSelect));
@@ -229,7 +229,7 @@ export class Sungear extends React.Component {
         e.stopPropagation();
         let {selected} = this.props;
 
-        if (e.metaKey) {
+        if (e.metaKey || e.shiftKey || e.ctrlKey) {
           if (selected.indexOf(i) === -1) {
             onSelectChange([...selected, i]);
           } else {
