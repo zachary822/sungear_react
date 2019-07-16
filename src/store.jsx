@@ -28,6 +28,7 @@ export function saveState(state) {
     localStorage.setItem('state', serializedState);
   } catch (e) {
     // Ignore for now
+    localStorage.setItem('state', '{}');
   }
 }
 
