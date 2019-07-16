@@ -124,8 +124,8 @@ export class Sungear extends React.Component {
 
     let side = Math.min(width, height);
     let polygon, r, polySide;
-    let center = [side / 2 + 0.05 * width, side / 2];
-    const applyHeight = _.partial(scaleVector, _, side, 0.05 * width);
+    let center = [side / 2, side / 2];
+    const applyHeight = _.partial(scaleVector, _, side);
     this.circles = [];
     this.labels = [];
 
