@@ -13,9 +13,39 @@ import {buildSearchRegex} from "../utils";
 import {library} from '@fortawesome/fontawesome-svg-core';
 import IntersectionIcon from "../images/intersection.svg";
 import UnionIcon from "../images/combination.svg";
+import convert from "color-convert";
 import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg-icons';
 
 library.add(faSearchPlus, faSearchMinus, faExpand);
+
+export function colorShader(h, s, l, v, min, max) {
+  v = Math.log10(v);
+
+  if (v > max) {
+    return '#ffffff';
+  } else {
+    let lMax = 90 - l;
+    let vl = l + _.clamp(lMax * ((v - min) / (max - min)), 0, lMax);
+
+    if (_.isNaN(vl)) {
+      vl = l;
+    }
+
+    let c = convert.hsl.rgb.raw(h, s, vl);
+
+    return '#' + convert.rgb.hex(c);
+  }
+}
+
+const _orangeShader = _.partial(colorShader, 40, 89.4, 52, _, _, Math.log10(0.5));
+
+const clampExp = _.flow(_.partial(_.clamp, _, Number.MIN_VALUE, Number.MAX_VALUE), Math.log10);
+
+export function getLogMinMax(data, cutoff = 0.05) {
+  let res = _(data).flatten().filter(_.isNumber);
+
+  return [clampExp(res.min()), Math.min(clampExp(res.max()), clampExp(cutoff))];
+}
 
 function distance(x1, y1, x2, y2) {
   return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
@@ -33,6 +63,30 @@ function scaleVector(v, scale = 1, xoffset = 0, yoffset = 0) {
   return [v[0] * scale + xoffset, v[1] * scale + yoffset];
 }
 
+class Tooltip extends React.PureComponent {
+  render() {
+    let {show, x, y} = this.props;
+    let style = {
+      display: show ? "block" : "none",
+      position: 'fixed',
+      left: `${x}px`,
+      top: `${y}px`,
+      fontSize: '0.8em'
+    };
+
+    return <div style={style} className="border bg-white px-2">
+      {this.props.children}
+    </div>;
+  }
+}
+
+Tooltip.propTypes = {
+  show: PropTypes.bool.isRequired,
+  x: PropTypes.number.isRequired,
+  y: PropTypes.number.isRequired,
+  children: PropTypes.node
+};
+
 export class Sungear extends React.Component {
   constructor(props) {
     super(props);
@@ -40,7 +94,12 @@ export class Sungear extends React.Component {
     this.canvas = React.createRef();
 
     this.state = {
-      selectMode: "union"
+      selectMode: "union",
+
+      toolTipX: 0,
+      toolTipY: 0,
+      toolTipShow: false,
+      toolTipContent: null
     };
 
     this.circles = [];
@@ -62,6 +121,9 @@ export class Sungear extends React.Component {
 
   componentDidMount() {
     this.paper = Raphael(this.canvas.current);
+    // throttle setViewBox to fix performance when dragging and zooming
+    this.paper.setViewBox = _.throttle(this.paper.setViewBox.bind(this.paper), 100);
+
     this.canvas.current.addEventListener('wheel', this.handleScroll);
     this.canvas.current.addEventListener('drag', this.handleDrag);
     this.canvas.current.addEventListener('mousedown', (e) => {
@@ -137,9 +199,14 @@ export class Sungear extends React.Component {
 
     let v = _.map(vertices, 1);
 
-    let intersects = _.map(data.intersects, ([v, c, g, s, arrows]) => {
-      return [v, applyHeight(c), g, s * side, _.map(arrows, _.unary(applyHeight))];
+    let intersects = _.map(data.intersects, ([v, c, g, p, s, arrows]) => {
+      return [v, applyHeight(c), g, p, s * side, _.map(arrows, _.unary(applyHeight))];
     });
+
+    let pVals = _(intersects).map(3).map('adj_p');
+    let minLogP = clampExp(pVals.min());
+    let orangeShader = _.partial(_orangeShader, _, minLogP);
+    let orangeShades = pVals.map(_.unary(orangeShader)).value();
 
     if (_.size(v) === 2) {
       r = distance(...v[0], ...v[1]) / 2;
@@ -199,7 +266,7 @@ export class Sungear extends React.Component {
 
         _.forEach(intersects, (n, i) => {
           if (n[0].indexOf(idx) !== -1) {
-            self.circles[i].attr("fill", "#fff");
+            self.circles[i].attr("fill", orangeShades[i]);
           }
         });
       });
@@ -229,13 +296,14 @@ export class Sungear extends React.Component {
       });
     }
 
-    let numThings = _(intersects).map(4).map(_.size).sum();
+    let numThings = _(intersects).map(5).map(_.size).sum();
 
     for (let [i, n] of intersects.entries()) {
-      let c = this.paper.circle(...n[1], n[3]);
+      let c = this.paper.circle(...n[1], n[4]);
+      let orange = orangeShades[i];
       this.circles.push(c);
 
-      c.attr({fill: "#fff", 'fill-opacity': 1});
+      c.attr("fill", orange);
 
       c.click((e) => {
         e.stopPropagation();
@@ -254,8 +322,17 @@ export class Sungear extends React.Component {
 
       c.mouseover(function () {
         let {fillColor} = self.props;
+        self.setState({
+          toolTipShow: true,
+          toolTipContent: <div>
+            <p className="mb-0">p-value: {n[3]['p_value'].toExponential(3)}</p>
+            <p className="mb-0">adjusted p-value: {n[3]['adj_p'].toExponential(3)}</p>
+            <p className="mb-0">size: {n[2].length}</p>
+            <p className="mb-0">expected: {n[3]['expected'].toFixed(3)}</p>
+          </div>
+        });
 
-        this.attr({fill: fillColor, 'fill-opacity': 1});
+        this.attr("fill", fillColor);
 
         for (let idx of n[0]) {
           self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", fillColor);
@@ -263,7 +340,10 @@ export class Sungear extends React.Component {
       });
 
       c.mouseout(function () {
-        c.attr({fill: "#fff", 'fill-opacity': 1});
+        this.attr("fill", orange);
+        self.setState({
+          toolTipShow: false
+        });
 
         for (let idx of n[0]) {
           self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", "#000");
@@ -271,7 +351,7 @@ export class Sungear extends React.Component {
       });
 
       if (numThings < 600) {
-        for (let a of n[4]) {
+        for (let a of n[5]) {
           let p = this.paper.path(`
           M ${n[1][0]} ${n[1][1]}
           L ${a[0]} ${a[1]}
@@ -282,22 +362,20 @@ export class Sungear extends React.Component {
       } else {
         let arrows = this.paper.set();
 
-        c.mouseover(() => {
-          c.attr('fill-opacity', 1);
-          for (let a of n[4]) {
-            let p = this.paper.path(`
+        c.mouseover(function () {
+          for (let a of n[5]) {
+            let p = self.paper.path(`
             M ${n[1][0]} ${n[1][1]}
             L ${a[0]} ${a[1]}
             `);
             p.attr("arrow-end", "classic");
 
             arrows.push(p);
-            c.toFront();
+            this.toFront();
           }
         });
 
-        c.mouseout(() => {
-          c.attr('fill-opacity', 0);
+        c.mouseout(function () {
           arrows.remove();
           arrows.clear();
         });
@@ -327,14 +405,21 @@ export class Sungear extends React.Component {
 
   handleDrag(e) {
     e.preventDefault();
-    if (this.mousedown) {
-      this.vX += (this.prevX - e.x) * this.scale;
-      this.vY += (this.prevY - e.y) * this.scale;
+    let {x, y} = e;
 
-      this.prevX = e.x;
-      this.prevY = e.y;
+    if (this.mousedown) {
+      this.vX += (this.prevX - x) * this.scale;
+      this.vY += (this.prevY - y) * this.scale;
+
+      this.prevX = x;
+      this.prevY = y;
 
       this.paper.setViewBox(this.vX, this.vY, this.vW, this.vH);
+    } else {
+      this.setState({
+        toolTipX: x + 10,
+        toolTipY: y + 10
+      });
     }
   }
 
@@ -366,7 +451,7 @@ export class Sungear extends React.Component {
 
   render() {
     let {className, width, height} = this.props;
-    let {selectMode} = this.state;
+    let {selectMode, toolTipX, toolTipY, toolTipShow, toolTipContent} = this.state;
 
     return <div style={{width, height, position: 'relative'}}>
       <div ref={this.canvas}
@@ -399,6 +484,9 @@ export class Sungear extends React.Component {
           </button>
         </div>
       </div>
+      <Tooltip x={toolTipX} y={toolTipY} show={toolTipShow}>
+        {toolTipContent}
+      </Tooltip>
     </div>;
   }
 }
@@ -447,8 +535,10 @@ export class ItemList extends React.PureComponent {
   }
 
   setSize() {
+    let {clientHeight} = document.documentElement;
+
     this.setState({
-      height: document.documentElement.clientHeight - this.listOuterRef.current.getBoundingClientRect().top
+      height: Math.min(clientHeight - this.listOuterRef.current.getBoundingClientRect().top, clientHeight / 2)
     });
   }
 
