@@ -8,7 +8,7 @@ import {FontAwesomeIcon as Icon} from "@fortawesome/react-fontawesome";
 import PropTypes from "prop-types";
 import {connect} from "react-redux";
 import {getSungear} from "../actions";
-import {ItemList, Search, Sungear} from "./sungear";
+import {ItemList as ItemListBody, Search, Sungear} from "./sungear";
 import {buildSearchRegex} from "../utils";
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {
@@ -29,6 +29,50 @@ function mapStateToProps({query, data}) {
     data
   };
 }
+
+function resizeListWrapper(Tag) {
+  class Wrapper extends React.Component {
+    constructor(props) {
+      super(props);
+
+      this.itemRef = React.createRef();
+
+      this.state = {
+        height: 0
+      };
+
+      this.setSize = _.throttle(this.setSize.bind(this), 100);
+    }
+
+    componentDidMount() {
+      this.setSize();
+      window.addEventListener('resize', this.setSize);
+    }
+
+    componentWillUnmount() {
+      window.removeEventListener('resize', this.setSize);
+    }
+
+    setSize() {
+      let {clientHeight} = document.documentElement;
+
+      this.setState({
+        height: Math.min(clientHeight - this.itemRef.current.getBoundingClientRect().top, clientHeight / 2)
+      });
+    }
+
+    render() {
+      let {className, innerClassName, ...props} = this.props;
+      return <div ref={this.itemRef} className={className}>
+        <Tag height={this.state.height} className={innerClassName} {...props}/>
+      </div>;
+    }
+  }
+
+  return Wrapper;
+}
+
+const ItemList = resizeListWrapper(ItemListBody);
 
 function saveSvg(svgEl, name) {
   svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg");

@@ -513,35 +513,6 @@ Sungear.defaultProps = {
 };
 
 export class ItemList extends React.PureComponent {
-  constructor(props) {
-    super(props);
-
-    this.listOuterRef = React.createRef();
-
-    this.state = {
-      height: 0
-    };
-
-    this.setSize = _.throttle(this.setSize.bind(this), 100);
-  }
-
-  componentDidMount() {
-    this.setSize();
-    window.addEventListener('resize', this.setSize);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.setSize);
-  }
-
-  setSize() {
-    let {clientHeight} = document.documentElement;
-
-    this.setState({
-      height: Math.min(clientHeight - this.listOuterRef.current.getBoundingClientRect().top, clientHeight / 2)
-    });
-  }
-
   renderItem({index, style}) {
     return <li className="list-group-item" style={style}>
       {this.props.items[index]}
@@ -551,10 +522,9 @@ export class ItemList extends React.PureComponent {
   render() {
     return <List className={this.props.className}
                  ref={this.props.listRef}
-                 outerRef={this.listOuterRef}
                  innerElementType={"ul"}
                  itemSize={50}
-                 height={this.state.height}
+                 height={this.props.height}
                  itemCount={this.props.items.length}>
       {this.renderItem.bind(this)}
     </List>;
@@ -563,6 +533,7 @@ export class ItemList extends React.PureComponent {
 
 ItemList.propTypes = {
   items: PropTypes.array.isRequired,
+  height: PropTypes.number.isRequired,
   listRef: PropTypes.object,
   className: PropTypes.string
 };
