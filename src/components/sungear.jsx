@@ -37,9 +37,25 @@ export function colorShader(h, s, l, v, min, max) {
   }
 }
 
-const _orangeShader = _.partial(colorShader, 40, 89.4, 52, _, _, Math.log10(0.5));
+const clampExp = _.flow(_.partial(_.clamp, _, Number.MIN_VALUE, Number.MAX_VALUE), Math.log10, (x) => x * -1);
 
-const clampExp = _.flow(_.partial(_.clamp, _, Number.MIN_VALUE, Number.MAX_VALUE), Math.log10);
+export function colorGradient(neutral, extreme, cutoff = 0.05) {
+  let neutralRGB = convert.hex.rgb(neutral);
+  let extremeRGB = convert.hex.rgb(extreme);
+  let negLog10Cutoff = clampExp(cutoff);
+
+  return function (curr, min, max) {
+    if (curr < negLog10Cutoff) {
+      return neutral;
+    }
+    let scale = (curr - min) / (max - min);
+    return '#' + convert.rgb.hex(_(neutralRGB).zip(extremeRGB).map(([nc, ec]) => nc * (1 - scale) + ec * scale).value());
+  };
+}
+
+// const _orangeShader = _.partial(colorShader, 40, 89.4, 52, _, _, Math.log10(0.5));
+const _orangeShader = colorGradient('#fff', '#b40426');
+const _blueShader = colorGradient('#fff', '#3b4cc0');
 
 export function getLogMinMax(data, cutoff = 0.05) {
   let res = _(data).flatten().filter(_.isNumber);
@@ -203,10 +219,17 @@ export class Sungear extends React.Component {
       return [v, applyHeight(c), g, p, s * side, _.map(arrows, _.unary(applyHeight))];
     });
 
-    let pVals = _(intersects).map(3).map('adj_p');
-    let minLogP = clampExp(pVals.min());
-    let orangeShader = _.partial(_orangeShader, _, minLogP);
-    let orangeShades = pVals.map(_.unary(orangeShader)).value();
+    let pVals = _(intersects).map(3).map('adj_p').map(clampExp);
+    let minLogP = pVals.min();
+    let maxLogP = pVals.max();
+    let orangeShader = _.unary(_.partial(_orangeShader, _, minLogP, maxLogP));
+    let blueShader = _.unary(_.partial(_blueShader, _, minLogP, maxLogP));
+    let colorShades = _(intersects).zip(pVals.value()).map(([n, p]) => {
+      if (n[3]['expected'] < n[2].length) {
+        return orangeShader(p);
+      }
+      return blueShader(p);
+    }).value();
 
     if (_.size(v) === 2) {
       r = distance(...v[0], ...v[1]) / 2;
@@ -266,7 +289,7 @@ export class Sungear extends React.Component {
 
         _.forEach(intersects, (n, i) => {
           if (n[0].indexOf(idx) !== -1) {
-            self.circles[i].attr("fill", orangeShades[i]);
+            self.circles[i].attr("fill", colorShades[i]);
           }
         });
       });
@@ -300,10 +323,10 @@ export class Sungear extends React.Component {
 
     for (let [i, n] of intersects.entries()) {
       let c = this.paper.circle(...n[1], n[4]);
-      let orange = orangeShades[i];
+      let color = colorShades[i];
       this.circles.push(c);
 
-      c.attr("fill", orange);
+      c.attr("fill", color);
 
       c.click((e) => {
         e.stopPropagation();
@@ -340,7 +363,7 @@ export class Sungear extends React.Component {
       });
 
       c.mouseout(function () {
-        this.attr("fill", orange);
+        this.attr("fill", color);
         self.setState({
           toolTipShow: false
         });
