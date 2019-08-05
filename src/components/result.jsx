@@ -8,7 +8,7 @@ import {FontAwesomeIcon as Icon} from "@fortawesome/react-fontawesome";
 import PropTypes from "prop-types";
 import {connect} from "react-redux";
 import {getSungear} from "../actions";
-import {ItemList as ItemListBody, Search, Sungear} from "./sungear";
+import {ItemList as ItemListBody, Search, Sungear, VertexCount} from "./sungear";
 import {buildSearchRegex} from "../utils";
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {
@@ -57,7 +57,9 @@ function resizeListWrapper(Tag) {
       let {clientHeight} = document.documentElement;
 
       this.setState({
-        height: Math.min(clientHeight - this.itemRef.current.getBoundingClientRect().top, clientHeight / 2)
+        height: Math.min(
+          Math.max(clientHeight - this.itemRef.current.getBoundingClientRect().top, 200),
+          clientHeight / 2)
       });
     }
 
@@ -116,8 +118,6 @@ class ResultBody extends React.Component {
   }
 
   componentDidMount() {
-    this.getSungear();
-
     this.setSize();
     window.addEventListener('resize', this.setSize);
   }
@@ -340,6 +340,11 @@ class ResultBody extends React.Component {
                       data={data}
                       selected={selected}
                       onSelectChange={this.handleSelect.bind(this)}/>
+            </div>
+          </div>
+          <div className="row m-1">
+            <div className="col">
+              <VertexCount data={data} selected={selected} onSelectChange={this.handleSelect.bind(this)}/>
             </div>
           </div>
           <div className="row m-1">

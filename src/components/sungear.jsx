@@ -612,3 +612,101 @@ Search.propTypes = {
   onSelectChange: PropTypes.func,
   data: PropTypes.object
 };
+
+export class VertexCount extends React.PureComponent {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      nodeByCount: []
+    };
+  }
+
+  componentDidMount() {
+    this.prepCounts();
+  }
+
+  componentDidUpdate(prevProps) {
+    let {data} = this.props;
+    if (data !== prevProps.data) {
+      this.prepCounts();
+    }
+  }
+
+  prepCounts() {
+    let {data} = this.props;
+    this.setState({
+      nodeByCount: _(_.reduce(data.intersects,
+        (acc, val, i) => {
+          let vertexNum = val[0].length;
+
+          if (vertexNum in acc) {
+            acc[vertexNum].push(i);
+          } else {
+            acc[vertexNum] = [i];
+          }
+
+          return acc;
+        },
+        {}))
+        .toPairs()
+        .map(([i, nodes]) => {
+          return [parseInt(i), nodes.length, _(nodes).map((j) => data.intersects[j][2].length).sum(), nodes];
+        })
+        .orderBy([0], ['asc'])
+        .value()
+    });
+  }
+
+  onRowSelect(row, e) {
+    let {onSelectChange, selected} = this.props;
+    let isSelected = !_.difference(row[3], selected).length;
+    if (e.metaKey || e.shiftKey || e.ctrlKey) {
+      if (isSelected) {
+        onSelectChange(_.difference(selected, row[3]));
+      } else {
+        onSelectChange(_.uniq(selected.concat(row[3])));
+      }
+    } else {
+      if (isSelected && !_.difference(selected, row[3]).length) {
+        onSelectChange([]);
+      } else {
+        onSelectChange(row[3]);
+      }
+    }
+  }
+
+  render() {
+    let {data, selected} = this.props;
+    let {nodeByCount} = this.state;
+
+    return <div style={{height: '200px', overflow: 'scroll'}}>
+      <table className="table table-bordered table-hover">
+        <thead>
+        <tr>
+          <th>No. Vertices</th>
+          <th>No. Vessels</th>
+          <th>No. Items</th>
+        </tr>
+        </thead>
+        <tbody>
+        {_.map(nodeByCount, (row, i) => {
+          return <tr key={i}
+                     className={classNames(!_.difference(row[3], selected).length && 'table-primary')}
+                     onClick={this.onRowSelect.bind(this, row)}>
+            <td>{row[0]}</td>
+            <td>{row[1]}</td>
+            <td>{row[2]}</td>
+          </tr>;
+        })}
+        </tbody>
+      </table>
+    </div>;
+  }
+}
+
+VertexCount.propTypes = {
+  data: PropTypes.object,
+  selected: PropTypes.arrayOf(PropTypes.number),
+  onSelectChange: PropTypes.func
+};
