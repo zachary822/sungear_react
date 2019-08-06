@@ -263,7 +263,7 @@ class ResultBody extends React.Component {
 
     return <div className="container-fluid">
       <div className="row">
-        <div ref={this.canvas} className="col-8 w-100">
+        <div ref={this.canvas} className="col-8 w-100 p-0">
           <Sungear width={width}
                    height={height}
                    data={data}

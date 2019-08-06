@@ -18,25 +18,6 @@ import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg
 
 library.add(faSearchPlus, faSearchMinus, faExpand);
 
-export function colorShader(h, s, l, v, min, max) {
-  v = Math.log10(v);
-
-  if (v > max) {
-    return '#ffffff';
-  } else {
-    let lMax = 90 - l;
-    let vl = l + _.clamp(lMax * ((v - min) / (max - min)), 0, lMax);
-
-    if (_.isNaN(vl)) {
-      vl = l;
-    }
-
-    let c = convert.hsl.rgb.raw(h, s, vl);
-
-    return '#' + convert.rgb.hex(c);
-  }
-}
-
 const clampExp = _.flow(_.partial(_.clamp, _, Number.MIN_VALUE, Number.MAX_VALUE), Math.log10, (x) => x * -1);
 
 export function colorGradient(neutral, extreme, cutoff = 0.05) {
@@ -115,7 +96,9 @@ export class Sungear extends React.Component {
       toolTipX: 0,
       toolTipY: 0,
       toolTipShow: false,
-      toolTipContent: null
+      toolTipContent: null,
+
+      maxLogP: 0
     };
 
     this.circles = [];
@@ -222,6 +205,11 @@ export class Sungear extends React.Component {
     let pVals = _(intersects).map(3).map('adj_p').map(clampExp);
     let minLogP = pVals.min();
     let maxLogP = pVals.max();
+
+    this.setState({
+      maxLogP
+    });
+
     let orangeShader = _.unary(_.partial(_orangeShader, _, minLogP, maxLogP));
     let blueShader = _.unary(_.partial(_blueShader, _, minLogP, maxLogP));
     let colorShades = _(intersects).zip(pVals.value()).map(([n, p]) => {
@@ -474,12 +462,12 @@ export class Sungear extends React.Component {
 
   render() {
     let {className, width, height} = this.props;
-    let {selectMode, toolTipX, toolTipY, toolTipShow, toolTipContent} = this.state;
+    let {selectMode, toolTipX, toolTipY, toolTipShow, toolTipContent, maxLogP} = this.state;
 
     return <div style={{width, height, position: 'relative'}}>
       <div ref={this.canvas}
            className={classNames(className)}/>
-      <div className="d-flex flex-column" style={{position: 'absolute', top: '10px', left: '0px'}}>
+      <div className="d-flex flex-column" style={{position: 'absolute', top: '10px', left: '10px'}}>
         <div className="btn-group-vertical mb-2">
           <button type="button" className="btn btn-primary btn-sm" onClick={this.resetView.bind(this)}>
             <Icon icon="expand" className="mr-1"/>
@@ -510,6 +498,17 @@ export class Sungear extends React.Component {
       <Tooltip x={toolTipX} y={toolTipY} show={toolTipShow}>
         {toolTipContent}
       </Tooltip>
+
+      <div style={{position: 'absolute', right: '10px', bottom: '10px'}}
+           className="d-flex align-items-center border rounded bg-white p-2">
+        <div className="mr-1">p-value:</div>
+        <div>≥0.05</div>
+        <div className="mx-2 my-1 border">
+          <div style={{background: 'linear-gradient(0.25turn, #ffffff, #b40426)', width: '120px', height: '0.5em'}}/>
+          <div style={{background: 'linear-gradient(0.25turn, #ffffff, #3b4cc0)', width: '120px', height: '0.5em'}}/>
+        </div>
+        <div>{Math.pow(10, -maxLogP).toExponential(2)}</div>
+      </div>
     </div>;
   }
 }
@@ -677,7 +676,7 @@ export class VertexCount extends React.PureComponent {
   }
 
   render() {
-    let {data, selected} = this.props;
+    let {selected} = this.props;
     let {nodeByCount} = this.state;
 
     return <div style={{height: '200px', overflow: 'scroll'}}>
