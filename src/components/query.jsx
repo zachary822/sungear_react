@@ -161,10 +161,10 @@ class QueryBody extends React.Component {
                   You can also drag and drop text files.
                 </small>
                 <small className="form-text text-muted">
-                  <a href="#" onClick={this.demoClick.bind(this)}>demo</a>
+                  <a href="#" onClick={this.demoClick.bind(this)}>Demo</a> — Click for a quick demo of Sungear&apos;s capabilities.
                 </small>
                 <small className="form-text text-muted">
-                  <a href={fileUrl} download>sample file</a>
+                  <a href={fileUrl} download>sample file</a> — Edit and re-upload to create a customized graph.
                 </small>
               </div>
               <input type="file" hidden ref={this.fileInput} onChange={this.handleFileInput.bind(this)}/>

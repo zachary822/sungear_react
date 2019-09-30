@@ -14,9 +14,12 @@ import {library} from '@fortawesome/fontawesome-svg-core';
 import IntersectionIcon from "../images/intersection.svg";
 import UnionIcon from "../images/combination.svg";
 import convert from "color-convert";
-import {faExpand, faSearchMinus, faSearchPlus} from '@fortawesome/free-solid-svg-icons';
+import {faExpand, faLock, faSearchMinus, faSearchPlus, faSync, faUnlock} from '@fortawesome/free-solid-svg-icons';
+import noUiSlider from 'nouislider';
+import 'nouislider/distribute/nouislider.css';
+import '../styles/styles.css';
 
-library.add(faSearchPlus, faSearchMinus, faExpand);
+library.add(faSearchPlus, faSearchMinus, faExpand, faLock, faUnlock, faSync);
 
 const clampExp = _.flow(_.partial(_.clamp, _, Number.MIN_VALUE, Number.MAX_VALUE), Math.log10, (x) => x * -1);
 
@@ -28,13 +31,16 @@ export function colorGradient(neutral, extreme, cutoff = 0.05) {
   return function (curr, min, max) {
     if (curr < negLog10Cutoff) {
       return neutral;
+    } else if (min === max) {
+      return extreme;
+    } else if (min > max) {
+      [min, max] = [max, min];
     }
-    let scale = (curr - min) / (max - min);
+    let scale = (curr - min + 1) / (max - min + 1);
     return '#' + convert.rgb.hex(_(neutralRGB).zip(extremeRGB).map(([nc, ec]) => nc * (1 - scale) + ec * scale).value());
   };
 }
 
-// const _orangeShader = _.partial(colorShader, 40, 89.4, 52, _, _, Math.log10(0.5));
 const _orangeShader = colorGradient('#fff', '#b40426');
 const _blueShader = colorGradient('#fff', '#3b4cc0');
 
@@ -84,6 +90,113 @@ Tooltip.propTypes = {
   children: PropTypes.node
 };
 
+function showTooltip() {
+  this.updateOptions({tooltips: true});
+}
+
+function hideTooltip() {
+  this.updateOptions({tooltips: false});
+}
+
+class Slider extends React.Component {
+  constructor(props) {
+    super(props);
+    this.containerRef = React.createRef();
+
+    this.sliderOverRef = React.createRef();
+    this.sliderUnderRef = React.createRef();
+
+    this.state = {
+      lock: false
+    };
+  }
+
+  componentDidMount() {
+    let {maxLogP} = this.props;
+    let self = this;
+
+    this.sliderOver = noUiSlider.create(this.sliderOverRef.current, {
+      start: [0],
+      connect: true,
+      range: {
+        'min': 0,
+        'max': maxLogP
+      }
+    });
+
+    this.sliderUnder = noUiSlider.create(this.sliderUnderRef.current, {
+      start: [0],
+      connect: true,
+      range: {
+        'min': 0,
+        'max': maxLogP
+      }
+    });
+
+    this.sliderOver.on('slide', (values) => {
+      if (this.state.lock) {
+        this.sliderUnder.set(values);
+      }
+    });
+
+    this.sliderUnder.on('slide', (values) => {
+      if (this.state.lock) {
+        this.sliderOver.set(values);
+      }
+    });
+
+    this.sliderOver.on('update', this.props.onOverChange);
+    this.sliderUnder.on('update', this.props.onUnderChange);
+
+    this.sliderOver.on('start', showTooltip);
+    this.sliderUnder.on('start', showTooltip);
+    this.sliderOver.on('end', hideTooltip);
+    this.sliderUnder.on('end', hideTooltip);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (this.state.lock !== prevState.lock) {
+      if (this.state.lock) {
+        this.sliderUnder.set(this.sliderOver.get());
+      }
+    }
+  }
+
+  toggleLock() {
+    this.setState({
+      lock: !this.state.lock
+    });
+  }
+
+  refresh() {
+    this.sliderOver.set(0);
+    this.sliderUnder.set(0);
+  }
+
+  render() {
+    return <div className="mx-2 d-flex flex-column align-items-center" ref={this.containerRef}>
+      <div style={{fontSize: '8px'}}>Overrepresented</div>
+      <div className="p-0 mx-2">
+        <div ref={this.sliderOverRef} className="slider slider-over"/>
+        <div ref={this.sliderUnderRef} className="slider slider-under"/>
+      </div>
+      <div style={{fontSize: '8px'}}>Underrepresented</div>
+      <div>
+        <span onClick={this.toggleLock.bind(this)} className="mx-1">
+          {this.state.lock ? <Icon icon="lock"/> : <Icon icon="unlock"/>}
+        </span>
+        <span onClick={this.refresh.bind(this)} className="mx-1"><Icon icon="sync"/></span>
+      </div>
+    </div>;
+  }
+}
+
+Slider.propTypes = {
+  onOverChange: PropTypes.func,
+  onUnderChange: PropTypes.func,
+  maxLogP: PropTypes.number
+};
+
 export class Sungear extends React.Component {
   constructor(props) {
     super(props);
@@ -98,7 +211,10 @@ export class Sungear extends React.Component {
       toolTipShow: false,
       toolTipContent: null,
 
-      maxLogP: 0
+      maxLogP: 0,
+
+      cutoffOverP: 0,
+      cutoffUnderP: 0
     };
 
     this.circles = [];
@@ -116,6 +232,9 @@ export class Sungear extends React.Component {
 
     this.handleScroll = this.handleScroll.bind(this);
     this.handleDrag = this.handleDrag.bind(this);
+
+    this.onOverChange = _.throttle(this.onOverChange.bind(this), 100);
+    this.onUnderChange = _.throttle(this.onUnderChange.bind(this), 100);
   }
 
   componentDidMount() {
@@ -143,7 +262,7 @@ export class Sungear extends React.Component {
     this.canvas.current.addEventListener('mousemove', this.handleDrag);
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     let {width, height, data, selected, vertexFormatter, strokeColor} = this.props;
 
     if (height !== prevProps.height || width !== prevProps.width) {
@@ -154,7 +273,8 @@ export class Sungear extends React.Component {
       (height !== prevProps.height ||
         width !== prevProps.width ||
         data !== prevProps.data ||
-        vertexFormatter !== prevProps.vertexFormatter)) {
+        vertexFormatter !== prevProps.vertexFormatter ||
+        (this.state.cutoffOverP !== prevState.cutoffOverP || this.state.cutoffUnderP !== prevState.cutoffUnderP))) {
       this.draw();
     }
 
@@ -164,6 +284,10 @@ export class Sungear extends React.Component {
 
     if (selected !== prevProps.selected) {
       for (let [i, c] of this.circles.entries()) {
+        if (!c) {
+          continue;
+        }
+
         if (selected.indexOf(i) !== -1) {
           c.attr("stroke", strokeColor);
         } else {
@@ -182,6 +306,7 @@ export class Sungear extends React.Component {
   draw() {
     let self = this;
     let {height, width, data, onSelectChange, vertexFormatter} = this.props;
+    let {cutoffOverP, cutoffUnderP} = this.state;
 
     let side = Math.min(width, height);
     let polygon, r, polySide;
@@ -202,9 +327,9 @@ export class Sungear extends React.Component {
       return [v, applyHeight(c), g, p, s * side, _.map(arrows, _.unary(applyHeight))];
     });
 
-    let pVals = _(intersects).map(3).map('adj_p').map(clampExp);
-    let minLogP = pVals.min();
-    let maxLogP = pVals.max();
+    let pVals = _(intersects).map(3).map('adj_p').map(clampExp).value();
+    let minLogP = _.min(pVals);
+    let maxLogP = _.max(pVals);
 
     this.setState({
       maxLogP
@@ -212,12 +337,14 @@ export class Sungear extends React.Component {
 
     let orangeShader = _.unary(_.partial(_orangeShader, _, minLogP, maxLogP));
     let blueShader = _.unary(_.partial(_blueShader, _, minLogP, maxLogP));
-    let colorShades = _(intersects).zip(pVals.value()).map(([n, p]) => {
+    let colorShadeShow = _(intersects).zip(pVals).map(([n, p]) => {
       if (n[3]['expected'] < n[2].length) {
-        return orangeShader(p);
+        return [orangeShader(p), p >= cutoffOverP];
       }
-      return blueShader(p);
+      return [blueShader(p), p >= cutoffUnderP];
     }).value();
+
+    let [colorShades, show] = _.zip(...colorShadeShow);
 
     if (_.size(v) === 2) {
       r = distance(...v[0], ...v[1]) / 2;
@@ -265,9 +392,12 @@ export class Sungear extends React.Component {
         this.attr("fill", fillColor);
 
         _.forEach(intersects, (n, i) => {
-          if (n[0].indexOf(idx) !== -1) {
-            let c = self.circles[i].attr("fill", fillColor);
-            c.toFront();
+          if (_.findIndex(n[0], (j) => _.isEqual(j, idx)) !== -1) {
+            let c = self.circles[i];
+            if (c) {
+              c.attr("fill", fillColor);
+              c.toFront();
+            }
           }
         });
       });
@@ -276,8 +406,11 @@ export class Sungear extends React.Component {
         this.attr("fill", "#000");
 
         _.forEach(intersects, (n, i) => {
-          if (n[0].indexOf(idx) !== -1) {
-            self.circles[i].attr("fill", colorShades[i]);
+          if (_.findIndex(n[0], (j) => _.isEqual(j, idx)) !== -1) {
+            let c = self.circles[i];
+            if (c) {
+              c.attr("fill", colorShades[i]);
+            }
           }
         });
       });
@@ -285,11 +418,15 @@ export class Sungear extends React.Component {
       t.click((e) => {
         e.stopPropagation();
         let {selected} = this.props;
-        let toSelect = _(intersects).map((n, i) => {
-          if (n[0].indexOf(idx) !== -1) {
-            return i;
-          }
-        }).filter(_.negate(_.isUndefined)).value();
+        let toSelect = _(intersects)
+          .map((n, i) => {
+            if (_.findIndex(n[0], (j) => _.isEqual(j, idx)) !== -1) {
+              return i;
+            }
+          })
+          .zip(show)
+          .map(([i, s]) => s ? i : undefined)
+          .filter(_.negate(_.isUndefined)).value();
 
         if (e.metaKey || e.shiftKey || e.ctrlKey) {
           let {selectMode} = this.state;
@@ -309,7 +446,13 @@ export class Sungear extends React.Component {
 
     let numThings = _(intersects).map(5).map(_.size).sum();
 
+    // draw nodes
     for (let [i, n] of intersects.entries()) {
+      if (!show[i]) {
+        this.circles.push(undefined);
+        continue;
+      }
+
       let c = this.paper.circle(...n[1], n[4]);
       let color = colorShades[i];
       this.circles.push(c);
@@ -346,7 +489,7 @@ export class Sungear extends React.Component {
         this.attr("fill", fillColor);
 
         for (let idx of n[0]) {
-          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", fillColor);
+          self.labels[_.findIndex(vertices, (v) => _.isEqual(v[0], idx))].attr("fill", fillColor);
         }
       });
 
@@ -357,7 +500,7 @@ export class Sungear extends React.Component {
         });
 
         for (let idx of n[0]) {
-          self.labels[_.findIndex(vertices, (v) => v[0] === idx)].attr("fill", "#000");
+          self.labels[_.findIndex(vertices, (v) => _.isEqual(v[0], idx))].attr("fill", "#000");
         }
       });
 
@@ -460,13 +603,25 @@ export class Sungear extends React.Component {
     });
   }
 
+  onOverChange(values, handle) {
+    this.setState({
+      cutoffOverP: parseFloat(values[handle])
+    });
+  }
+
+  onUnderChange(values, handle) {
+    this.setState({
+      cutoffUnderP: parseFloat(values[handle])
+    });
+  }
+
   render() {
     let {className, width, height} = this.props;
     let {selectMode, toolTipX, toolTipY, toolTipShow, toolTipContent, maxLogP} = this.state;
 
     return <div style={{width, height, position: 'relative'}}>
       <div ref={this.canvas}
-           className={classNames(className)}/>
+           className={className}/>
       <div className="d-flex flex-column" style={{position: 'absolute', top: '10px', left: '10px'}}>
         <div className="btn-group-vertical mb-2">
           <button type="button" className="btn btn-primary btn-sm" onClick={this.resetView.bind(this)}>
@@ -499,15 +654,16 @@ export class Sungear extends React.Component {
         {toolTipContent}
       </Tooltip>
 
-      <div style={{position: 'absolute', right: '10px', bottom: '10px'}}
-           className="d-flex align-items-center border rounded bg-white p-2">
-        <div className="mr-1">p-value:</div>
-        <div>≥0.05</div>
-        <div className="mx-2 my-1 border">
-          <div style={{background: 'linear-gradient(0.25turn, #ffffff, #b40426)', width: '120px', height: '0.5em'}}/>
-          <div style={{background: 'linear-gradient(0.25turn, #ffffff, #3b4cc0)', width: '120px', height: '0.5em'}}/>
-        </div>
-        <div>{Math.pow(10, -maxLogP).toExponential(2)}</div>
+      <div style={{position: 'absolute', right: '10px', bottom: '10px', background: 'rgba(255, 255, 255, 0.7)'}}
+           className="d-flex align-items-center border rounded px-2 py-0">
+        <div className="mr-1">-Log10 p-value</div>
+        <div>≤{-Math.log10(0.05).toFixed(2)}</div>
+        {maxLogP ?
+          <Slider onOverChange={this.onOverChange}
+                  onUnderChange={this.onUnderChange}
+                  maxLogP={maxLogP}/> :
+          null}
+        <div>{maxLogP.toFixed(2)}</div>
       </div>
     </div>;
   }
@@ -679,7 +835,7 @@ export class VertexCount extends React.PureComponent {
     let {selected} = this.props;
     let {nodeByCount} = this.state;
 
-    return <div style={{height: '200px', overflow: 'scroll'}}>
+    return <div style={{maxHeight: '300px', overflow: 'scroll'}}>
       <table className="table table-bordered table-hover">
         <thead>
         <tr>

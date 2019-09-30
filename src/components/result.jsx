@@ -335,6 +335,17 @@ class ResultBody extends React.Component {
           </div>
           <div className="row m-1">
             <div className="col">
+              <h6>Info:</h6>
+              <p className="text-secondary m-0">Ctrl + Left Click to select multiple nodes.</p>
+              <p className="text-secondary m-0">
+                Multiple selection on list names (vertices) adds all nodes of the list to the selection.
+                New nodes will be added as a <span className="font-weight-bold">Union</span> or <span className="font-weight-bold">Intersection </span>
+                based on the selection mode selected on the left.
+              </p>
+            </div>
+          </div>
+          <div className="row m-1">
+            <div className="col">
               <Search value={searchTerm}
                       onChange={this.handleSearch.bind(this)}
                       data={data}

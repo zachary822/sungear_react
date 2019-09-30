@@ -1,0 +1,28 @@
+.slider {
+    width: 120px
+}
+
+.slider-over .noUi-connects {
+    background: linear-gradient(0.25turn, #ffffff, #b40426);
+}
+
+.slider-under .noUi-connects {
+    background: linear-gradient(0.25turn, #ffffff, #3b4cc0);
+}
+
+.noUi-handle {
+    height: 18px !important;
+    width: 28px !important;
+    top: -1px !important;
+}
+
+.noUi-handle:before,
+.noUi-handle:after {
+    height: 8px;
+    left: 11px;
+    top: 4px;
+}
+
+.noUi-handle:after {
+    left: 14px;
+}
