@@ -10,7 +10,12 @@
     background: linear-gradient(0.25turn, #ffffff, #3b4cc0);
 }
 
+.noUi-target {
+    background: rgba(250, 250, 250, 0.8);
+}
+
 .noUi-handle {
+    background: rgba(255, 255, 255, 0.8);
     height: 18px !important;
     width: 28px !important;
     top: -1px !important;
