@@ -472,6 +472,10 @@ export class Sungear extends React.Component {
         } else {
           onSelectChange([i]);
         }
+
+        if (_.isFunction(self.props.onNodeClick)) {
+          self.props.onNodeClick(n);
+        }
       });
 
       c.mouseover(function () {
@@ -678,7 +682,8 @@ Sungear.propTypes = {
   onSelectChange: PropTypes.func,
   vertexFormatter: PropTypes.object,
   fillColor: PropTypes.string,
-  strokeColor: PropTypes.string
+  strokeColor: PropTypes.string,
+  onNodeClick: PropTypes.func
 };
 
 Sungear.defaultProps = {
