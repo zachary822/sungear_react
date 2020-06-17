@@ -22,7 +22,7 @@ const config = {
       {
         test: /\.jsx?$/,
         exclude: /node_modules/,
-        loaders: ['babel-loader']
+        use: ['babel-loader']
       },
       {
         test: /\.css(\?v=[0-9]\.[0-9]\.[0-9])?$/,
@@ -58,6 +58,7 @@ const config = {
   },
   devtool: 'inline-source-map',
   plugins: [
+    new webpack.ProgressPlugin(),
     new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
     new HtmlWebpackPlugin({
       template: 'src/index.html'

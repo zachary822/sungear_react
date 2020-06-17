@@ -9,7 +9,6 @@ const TerserPlugin = require('terser-webpack-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const {CleanWebpackPlugin} = require('clean-webpack-plugin');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const APP_DIR = path.join(__dirname, 'src');
 
@@ -28,7 +27,7 @@ const config = {
       {
         test: /\.jsx?$/,
         exclude: /node_modules/,
-        loaders: ['babel-loader']
+        use: ['babel-loader']
       },
       {
         test: /\.css(\?v=[0-9]\.[0-9]\.[0-9])?$/,
@@ -80,6 +79,7 @@ const config = {
     }
   },
   plugins: [
+    new webpack.ProgressPlugin(),
     new CleanWebpackPlugin(),
     new webpack.DefinePlugin({
       'process.env': {
