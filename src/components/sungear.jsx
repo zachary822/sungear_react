@@ -263,7 +263,7 @@ export class Sungear extends React.Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    let {width, height, data, selected, vertexFormatter, strokeColor} = this.props;
+    let {width, height, data, selected, vertexFormatter, strokeColor, alwaysShowArrows, showNodeSize} = this.props;
 
     if (height !== prevProps.height || width !== prevProps.width) {
       this.paper.setSize(width, height);
@@ -274,7 +274,10 @@ export class Sungear extends React.Component {
         width !== prevProps.width ||
         data !== prevProps.data ||
         vertexFormatter !== prevProps.vertexFormatter ||
-        (this.state.cutoffOverP !== prevState.cutoffOverP || this.state.cutoffUnderP !== prevState.cutoffUnderP))) {
+        alwaysShowArrows !== prevProps.alwaysShowArrows ||
+        showNodeSize !== prevProps.showNodeSize ||
+        (this.state.cutoffOverP !== prevState.cutoffOverP ||
+          this.state.cutoffUnderP !== prevState.cutoffUnderP))) {
       this.draw();
     }
 
@@ -305,7 +308,7 @@ export class Sungear extends React.Component {
 
   draw() {
     let self = this;
-    let {height, width, data, onSelectChange, vertexFormatter} = this.props;
+    let {height, width, data, onSelectChange, vertexFormatter, alwaysShowArrows, showNodeSize} = this.props;
     let {cutoffOverP, cutoffUnderP} = this.state;
 
     let side = Math.min(width, height);
@@ -396,7 +399,6 @@ export class Sungear extends React.Component {
             let c = self.circles[i];
             if (c) {
               c.attr("fill", fillColor);
-              c.toFront();
             }
           }
         });
@@ -454,6 +456,19 @@ export class Sungear extends React.Component {
       }
 
       let c = this.paper.circle(...n[1], n[4]);
+      let arrows = this.paper.set();
+      let cT;
+      if (showNodeSize) {
+        cT = this.paper.text(...n[1], n[2].length.toString());
+        let cTBBox = cT.getBBox();
+        let cTSize = Math.max(cTBBox.width, cTBBox.height);
+
+        if (cTSize > n[4]) {
+          let s = n[4] / cTSize;
+          cT.scale(s, s);
+        }
+      }
+
       let color = colorShades[i];
       this.circles.push(c);
 
@@ -495,6 +510,12 @@ export class Sungear extends React.Component {
         for (let idx of n[0]) {
           self.labels[_.findIndex(vertices, (v) => _.isEqual(v[0], idx))].attr("fill", fillColor);
         }
+
+        arrows.toFront();
+        this.toFront();
+        if (cT) {
+          cT.toFront();
+        }
       });
 
       c.mouseout(function () {
@@ -508,18 +529,17 @@ export class Sungear extends React.Component {
         }
       });
 
-      if (numThings < 600) {
+      if (numThings < 600 || alwaysShowArrows) {
         for (let a of n[5]) {
           let p = this.paper.path(`
           M ${n[1][0]} ${n[1][1]}
           L ${a[0]} ${a[1]}
           `);
           p.attr("arrow-end", "classic");
-        }
-        c.toFront();
-      } else {
-        let arrows = this.paper.set();
 
+          arrows.push(p);
+        }
+      } else {
         c.mouseover(function () {
           for (let a of n[5]) {
             let p = self.paper.path(`
@@ -529,7 +549,6 @@ export class Sungear extends React.Component {
             p.attr("arrow-end", "classic");
 
             arrows.push(p);
-            this.toFront();
           }
         });
 
@@ -538,6 +557,8 @@ export class Sungear extends React.Component {
           arrows.clear();
         });
       }
+
+      arrows.toBack();
     }
   }
 
@@ -683,7 +704,9 @@ Sungear.propTypes = {
   vertexFormatter: PropTypes.object,
   fillColor: PropTypes.string,
   strokeColor: PropTypes.string,
-  onNodeClick: PropTypes.func
+  onNodeClick: PropTypes.func,
+  alwaysShowArrows: PropTypes.bool,
+  showNodeSize: PropTypes.bool
 };
 
 Sungear.defaultProps = {
@@ -692,7 +715,9 @@ Sungear.defaultProps = {
   onSelectChange: _.noop,
   vertexFormatter: {},
   fillColor: "#257AFD",
-  strokeColor: "#257AFD"
+  strokeColor: "#257AFD",
+  alwaysShowArrows: false,
+  showNodeSize: false
 };
 
 export class ItemList extends React.PureComponent {

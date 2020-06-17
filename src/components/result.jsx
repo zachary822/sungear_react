@@ -111,7 +111,10 @@ class ResultBody extends React.Component {
 
       searchTerm: '',
 
-      selectColor: "#257AFD"
+      selectColor: "#257AFD",
+
+      alwaysShowArrows: false,
+      showNodeSize: false
     };
 
     this.setSize = _.throttle(this.setSize.bind(this), 100);
@@ -257,8 +260,16 @@ class ResultBody extends React.Component {
     });
   }
 
+  showArrows(e) {
+    this.setState({alwaysShowArrows: e.target.checked});
+  }
+
+  showNodeSize(e) {
+    this.setState({showNodeSize: e.target.checked});
+  }
+
   render() {
-    let {height, width, selected, items, searchTerm, selectColor} = this.state;
+    let {height, width, selected, items, searchTerm, selectColor, alwaysShowArrows, showNodeSize} = this.state;
     let {data} = this.props;
 
     return <div className="container-fluid">
@@ -270,7 +281,9 @@ class ResultBody extends React.Component {
                    selected={selected}
                    onSelectChange={this.handleSelect.bind(this)}
                    strokeColor={selectColor}
-                   fillColor={selectColor}/>
+                   fillColor={selectColor}
+                   alwaysShowArrows={alwaysShowArrows}
+                   showNodeSize={showNodeSize}/>
         </div>
         <div className="col-4">
           <div className="row m-1">
@@ -323,6 +336,26 @@ class ResultBody extends React.Component {
           <div className="row m-1">
             <div className="col">
               <div className="form-inline">
+                <input type="checkbox" id="showarrows" className="form-control"
+                       checked={alwaysShowArrows}
+                       onChange={this.showArrows.bind(this)}/>
+                <label htmlFor="showarrows" className="ml-1">Always Show Node Arrows</label>
+              </div>
+            </div>
+          </div>
+          <div className="row m-1">
+            <div className="col">
+              <div className="form-inline">
+                <input type="checkbox" id="showsize" className="form-control"
+                       checked={showNodeSize}
+                       onChange={this.showNodeSize.bind(this)}/>
+                <label htmlFor="showsize" className="ml-1">Show Node Size</label>
+              </div>
+            </div>
+          </div>
+          <div className="row m-1">
+            <div className="col">
+              <div className="form-inline">
                 <label className="mr-2" htmlFor="color">Selection Color:</label>
                 <input type="color"
                        id="color"
@@ -339,7 +372,8 @@ class ResultBody extends React.Component {
               <p className="text-secondary m-0">Ctrl + Left Click to select multiple nodes.</p>
               <p className="text-secondary m-0">
                 Multiple selection on list names (vertices) adds all nodes of the list to the selection.
-                New nodes will be added as a <span className="font-weight-bold">Union</span> or <span className="font-weight-bold">Intersection </span>
+                New nodes will be added as a <span className="font-weight-bold">Union</span> or <span
+                className="font-weight-bold">Intersection </span>
                 based on the selection mode selected on the left.
               </p>
             </div>
